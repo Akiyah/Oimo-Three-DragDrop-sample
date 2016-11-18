@@ -12,7 +12,7 @@
 <script src="js/oimo.js"></script>
 <style>
     body {
-        margin : 0px;
+        margin: 10px;
         overflow: hidden;
     }
 </style>
@@ -71,7 +71,7 @@
         camera.position.set(400, 200, 100);
 
         renderer = new THREE.WebGLRenderer({canvas:canvas, precision:"mediump", antialias:true});
-        renderer.setSize( window.innerWidth, window.innerHeight );
+        onWindowResize();
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         
@@ -176,9 +176,11 @@
     }
 
     function onWindowResize() {
-        camera.aspect = canvas.width / canvas.height;
+        var w = window.innerWidth - 20;
+        var h = window.innerHeight - 20;
+        camera.aspect = w / h;
         camera.updateProjectionMatrix();
-        renderer.setSize(canvas.width, canvas.height);
+        renderer.setSize(w, h);
     }
 
     function generateBlockPosition() {
