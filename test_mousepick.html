@@ -243,6 +243,10 @@
             dragLineView.geometry.vertices[1].copy(dragLineModel.getPosition()[1]);
             dragLineView.geometry.verticesNeedUpdate = true;
         }
+
+        if (dragPoint) {
+            dragPointModel.setPosition(dragPoint);
+        }
     }
 
     function onMouseUp(e) {
@@ -274,11 +278,16 @@
     }
 
     function onMouseMove(e) {
-        if (dragStatus == DRAG_STATUS_NONE) return;
+        //if (dragStatus == DRAG_STATUS_NONE) return;
 
         updateMouse(e);
         ray.setFromCamera(mouse, camera);
-        var intersects = ray.intersectObjects([dragPlaneView], true);
+        var intersects;
+        if (dragStatus == DRAG_STATUS_NONE) {
+            intersects = ray.intersectObjects(views, true);
+        } else {
+            intersects = ray.intersectObjects([dragPlaneView], true);
+        }
         if (0 < intersects.length) {
             dragPoint = intersects[0].point;
         }
