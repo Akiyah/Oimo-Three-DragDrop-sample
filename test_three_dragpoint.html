@@ -24,9 +24,7 @@
     var camera, scene, light, renderer, canvas, controls;
     var views = [];
     var material;
-    var sleepMaterial;
     var boxGeometry;
-    var ray, mouse;
 
     init();
     loop();
@@ -36,7 +34,7 @@
 
         createGround();
         createBlocks();
-        createDragControls();
+        createDragPointControls();
 
         window.addEventListener('resize', onWindowResize, false);
     }
@@ -55,9 +53,6 @@
         controls = new THREE.OrbitControls( camera, canvas );
         controls.target.set(0, 0, 0);
 
-        ray = new THREE.Raycaster();
-        mouse = new THREE.Vector2();
-
         scene = new THREE.Scene();
 
         // light
@@ -74,7 +69,6 @@
         boxGeometry.fromGeometry(new THREE.BoxGeometry(1, 1, 1));
 
         material = new THREE.MeshPhongMaterial({color:0x888888});
-        sleepMaterial = new THREE.MeshPhongMaterial({color:0x666666});
     }
 
     function createGround() {
@@ -111,11 +105,11 @@
         }
     }
 
-    function createDragControls() {
-        var dragControls = new THREE.DragPointControls(camera, views, renderer.domElement);
-        dragControls.enabled = true;
-        dragControls.on('dragstart', function(e) { controls.enabled = false;  });
-        dragControls.on('dragend',   function(e) { controls.enabled = true;  });
+    function createDragPointControls() {
+        var dragPointControls = new THREE.DragPointControls(camera, views, renderer.domElement);
+        dragPointControls.enabled = true;
+        dragPointControls.on('dragstart', function(e) { controls.enabled = false;  });
+        dragPointControls.on('dragend',   function(e) { controls.enabled = true;  });
     }
 
     function onWindowResize() {
