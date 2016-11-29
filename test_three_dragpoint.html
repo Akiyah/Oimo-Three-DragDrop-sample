@@ -9,6 +9,7 @@
 
 <script src="js/three.min.js"></script>
 <script src="js/OrbitControls.js"></script>
+<script src="DragPointControls.js"></script>
 <style>
     body {
         margin: 10px;
@@ -35,6 +36,7 @@
 
         createGround();
         createBlocks();
+        createDragControls();
 
         window.addEventListener('resize', onWindowResize, false);
     }
@@ -107,6 +109,13 @@
             views.push(view);
             scene.add(view);
         }
+    }
+
+    function createDragControls() {
+        var dragControls = new THREE.DragPointControls(camera, views, renderer.domElement);
+        dragControls.enabled = true;
+        dragControls.on('dragstart', function(e) { controls.enabled = false;  });
+        dragControls.on('dragend',   function(e) { controls.enabled = true;  });
     }
 
     function onWindowResize() {
