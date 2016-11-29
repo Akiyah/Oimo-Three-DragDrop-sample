@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Oimo.js mouse pick</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=11" />
+<link rel="shortcut icon" href="favicon.ico">
+
+<script src="js/three.min.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/oimo.js"></script>
+<style>
+    body {
+        margin: 10px;
+        overflow: hidden;
+    }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+    // three var
+    var camera, scene, light, renderer, canvas, controls;
+    var views = [];
+    var material;
+    var sleepMaterial;
+    var boxGeometry;
+    var ray, mouse;
+
+    //oimo var
+    var world = null;
+    var models = [];
+
+    //drag var
+    var dragPointView;
+    var dragPointModel;
+    var dragPlaneView;
+    var dragLineModel;
+    var dragLineView;
+    var dragPoint;
+    var dragBlockName;
+    var dragBlockLocalAnchorPoint;
+
+    var DRAG_STATUS_NONE = "DRAG_STATUS_NONE";
+    var DRAG_STATUS_START = "DRAG_STATUS_START";
+    var DRAG_STATUS_DRAGGING = "DRAG_STATUS_DRAGGING";
+    var dragStatus = DRAG_STATUS_NONE;
+ 
+    init();
+    loop();
+
+    function init() {
+        initThree();
+        initOimo();
+
+        createDrags();
+        createGround();
+        createBlocks();
+
+        window.addEventListener('resize', onWindowResize, false);
+        canvas.addEventListener('mousemove', onMouseMove, false);
+        canvas.addEventListener('mouseup', onMouseUp, false);
+        canvas.addEventListener('mousedown', onMouseDown, false);
+    }
+
+    function initThree() {
+        canvas = document.getElementById("canvas");
+
+        camera = new THREE.PerspectiveCamera(60, canvas.width / canvas.height, 1, 5000);
+        camera.position.set(400, 200, 100);
+
+        renderer = new THREE.WebGLRenderer({canvas:canvas, precision:"mediump", antialias:true});
+        onWindowResize();
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
+        
+        controls = new THREE.OrbitControls( camera, canvas );
+        controls.target.set(0, 0, 0);
+
+        ray = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+
+        scene = new THREE.Scene();
+
+        // light
+        scene.add(new THREE.AmbientLight(0x666666));
+        light = new THREE.DirectionalLight(0xffffff, 1.5);
+        light.position.set(100, 200, 300);
+        light.target.position.set(0, 0, 0);
+        light.castShadow = true;
+        light.shadowMapWidth = 1024;
+        light.shadowMapHeight = 1024;
+        scene.add(light);
+
+        boxGeometry = new THREE.BufferGeometry();
+        boxGeometry.fromGeometry(new THREE.BoxGeometry(1, 1, 1));
+
+        material = new THREE.MeshPhongMaterial({color:0x888888});
+        sleepMaterial = new THREE.MeshPhongMaterial({color:0x666666});
+    }
+
+    function initOimo() {
+        world = new OIMO.World(1/60, 2, 8);
+    }
+
+    function createGround() {
+        var config = [1, 0.4, 0.2, 1, 0xffffffff];
+        world.add({size:[400, 40, 400], pos:[0, -20, 0], config:config});
+
+        var view = new THREE.Mesh(boxGeometry, material);
+        view.scale.set(400, 40, 400);
+        view.position.set(0, -20, 0);
+        view.castShadow = true;
+        view.receiveShadow = true;
+        scene.add(view);
+    }
+
+    function createBlocks() {
+        var config = [1, 0.4, 0.2, 1 << 1, 0xffffffff];
+
+        var view, model;
+        var pos, name;
+        var w = 30;
+        var N = 30; //30;
+        for (var i = 0; i < N; i++) {
+            name = 'block' + i;
+
+            pos = generateBlockPosition();
+            model = world.add({type:'box', size:[w,w,w], pos:pos, move:true, config:config, name:name});
+            models.push(model);
+
+            view = new THREE.Mesh(boxGeometry, material);
+            view.name = name;
+            view.scale.set(w, w, w);
+            view.castShadow = true;
+            view.receiveShadow = true;
+
+            views.push(view);
+            scene.add(view);
+        }
+    }
+
+    function createDrags() {
+        dragPointView = new THREE.Mesh(
+            new THREE.SphereGeometry(5, 8, 8),
+            new THREE.MeshLambertMaterial( { color: 0xff0000 } )
+        );
+
+        dragPlaneView = new THREE.Mesh(
+            new THREE.PlaneGeometry(200, 200, 10, 10),
+            new THREE.MeshLambertMaterial( { color: 0x770000, transparent:true, opacity:0.3 } )
+        );
+        dragPlaneView.material.visible = false; // true; // debug
+
+        var lineGeometry = new THREE.Geometry();
+        lineGeometry.vertices.push(
+	    new THREE.Vector3(),
+	    new THREE.Vector3()
+        );
+        dragLineView = new THREE.Line(
+            lineGeometry,
+            new THREE.LineBasicMaterial({ color: 0x770000, linewidth: 5 })
+        );
+
+        dragPointView.visible = false;
+        dragPlaneView.visible = false;
+        dragLineView.visible = false;
+
+        scene.add(dragPointView);
+        scene.add(dragPlaneView);
+        scene.add(dragLineView);
+
+        var config = [1, 0.4, 0.2, 1 << 2, 1 << 2];
+        dragPointModel = world.add({type:'sphere', size:[10], pos:[0, 0, 0], move:true, noSleep:true, config:config, name:'dragPointModel'});
+    }
+
+    function onWindowResize() {
+        var w = window.innerWidth - 20;
+        var h = window.innerHeight - 20;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    }
+
+    function generateBlockPosition() {
+        x = (Math.random()*2-1)*20;
+        z = (Math.random()*2-1)*20;
+        y = 100 + Math.random()*1000;
+        return [x, y, z];
+    }
+    
+    function loop() {
+        update();
+        renderer.render(scene, camera);
+        requestAnimationFrame(loop );
+    }
+
+    function update() {
+        world.step();
+
+        var pos, view, model;
+        var i;
+
+        for (i = 0; i < models.length; i++) {
+            model = models[i];
+
+            if(model.getPosition().y < -100) {
+                pos = generateBlockPosition();
+                model.resetPosition(pos[0], pos[1], pos[2]);
+            }
+        }
+
+        for (i = 0; i < models.length; i++) {
+            model = models[i];
+            view = views[i];
+
+            view.position.copy(model.getPosition());
+            view.quaternion.copy(model.getQuaternion());
+
+            if (model.sleeping) {
+                view.material = sleepMaterial;
+            } else {
+                view.material = material;
+            }
+        }
+
+        if (dragStatus == DRAG_STATUS_START) {
+            dragStatus = DRAG_STATUS_DRAGGING;
+            dragLineConnect();
+            dragPointView.visible = true;
+            dragPlaneView.visible = true;
+            dragLineView.visible = true;
+        }
+
+        if (dragStatus == DRAG_STATUS_DRAGGING) {
+            dragPointModel.setPosition(dragPoint);
+            dragPointView.position.copy(dragPoint);
+            dragPlaneView.position.copy(dragPoint);
+            dragPlaneView.quaternion.copy(camera.quaternion);
+
+            dragLineView.geometry.vertices[0].copy(dragLineModel.getPosition()[0]);
+            dragLineView.geometry.vertices[1].copy(dragLineModel.getPosition()[1]);
+            dragLineView.geometry.verticesNeedUpdate = true;
+        }
+
+        if (dragPoint) {
+            dragPointModel.setPosition(dragPoint);
+        }
+    }
+
+    function onMouseUp(e) {
+        if (dragStatus !== DRAG_STATUS_NONE) {
+            dragStatus = DRAG_STATUS_NONE;
+            controls.enabled = true;
+
+            dragPointView.visible = false;
+            dragPlaneView.visible = false;
+            dragLineView.visible = false;
+            dragLineModel.remove();
+        }
+    }
+
+    function onMouseDown(e) {
+        if (dragStatus !== DRAG_STATUS_NONE) return;
+
+        updateMouse(e);
+        ray.setFromCamera(mouse, camera);
+        var intersects = ray.intersectObjects(views, true);
+        if (0 < intersects.length) {
+            dragStatus = DRAG_STATUS_START;
+            controls.enabled = false;
+
+            dragPoint = intersects[0].point;
+            dragBlockName = intersects[0].object.name;
+            dragBlockLocalAnchorPoint = localAnchorPoint(dragBlockName, dragPoint);
+        }
+    }
+
+    function onMouseMove(e) {
+        //if (dragStatus == DRAG_STATUS_NONE) return;
+
+        updateMouse(e);
+        ray.setFromCamera(mouse, camera);
+        var intersects;
+        if (dragStatus == DRAG_STATUS_NONE) {
+            intersects = ray.intersectObjects(views, true);
+        } else {
+            intersects = ray.intersectObjects([dragPlaneView], true);
+        }
+        if (0 < intersects.length) {
+            dragPoint = intersects[0].point;
+        }
+    }
+
+    function localAnchorPoint(blockName, anchorPointInThree) {
+        var model = world.getByName(blockName);
+
+        var anchorPoint = new OIMO.Vec3().copy(anchorPointInThree).multiplyScalar(OIMO.INV_SCALE);
+        var position = model.position;
+        var rotation = model.rotation;
+        var rotationInvert = new OIMO.Mat33();
+        rotationInvert.invert(rotation);
+        var relativeAnchorPoint = new OIMO.Vec3();
+        relativeAnchorPoint.sub(anchorPoint, position);
+        var localAnchorPoint = new OIMO.Vec3();
+        localAnchorPoint.mulMat(rotationInvert, relativeAnchorPoint);
+
+        return localAnchorPoint.multiplyScalar(OIMO.WORLD_SCALE);
+    }
+
+    function dragLineConnect() {
+        var p = dragBlockLocalAnchorPoint;
+        var params = {
+            world: world,
+            type: "jointDistance",
+            body1: "dragPointModel",
+            body2: dragBlockName,
+            collision: false,
+            pos1: [0,0,0],
+            pos2: [p.x, p.y, p.z],
+            //axe1: [1,0,0],
+            //axe2: [1,0,0],
+            min:0,
+            max:1,
+            spring:[200, 0]
+        };
+        dragLineModel = new OIMO.Link(params);
+    }
+
+    function updateMouse(e) {
+        mouse.x = ( e.layerX / canvas.width ) * 2 - 1;
+        mouse.y = - ( e.layerY / canvas.height ) * 2 + 1;
+    }
+</script>
+</body>
+</html>
