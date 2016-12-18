@@ -8,7 +8,7 @@
 <link rel="shortcut icon" href="favicon.ico">
 
 <script src="js/three.min.js"></script>
-<script src="js/OrbitControls.js"></script>
+<script src="js/TrackballControls.js"></script>
 <script src="DragPointControls.js"></script>
 <style>
     body {
@@ -50,7 +50,7 @@
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFShadowMap;
         
-        controls = new THREE.OrbitControls( camera, canvas );
+        controls = new THREE.TrackballControls( camera, canvas );
         controls.target.set(0, 0, 0);
 
         scene = new THREE.Scene();
@@ -106,10 +106,10 @@
     }
 
     function createDragPointControls() {
-        var dragPointControls = new THREE.DragPointControls(camera, views, renderer.domElement);
+        var dragPointControls = new THREE.DragPointControls(views, camera, renderer.domElement);
         dragPointControls.enabled = true;
-        dragPointControls.on('dragstart', function(e) { controls.enabled = false;  });
-        dragPointControls.on('dragend',   function(e) { controls.enabled = true;  });
+        dragPointControls.addEventListener('dragstart', function(e) { controls.enabled = false;  });
+        dragPointControls.addEventListener('dragend',   function(e) { controls.enabled = true;  });
     }
 
     function onWindowResize() {
@@ -128,6 +128,7 @@
     }
     
     function loop() {
+	controls.update();
         renderer.render(scene, camera);
         requestAnimationFrame(loop );
     }
